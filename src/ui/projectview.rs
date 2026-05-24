@@ -2,12 +2,11 @@ use color_eyre::eyre::eyre;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Constraint, Layout, Rect, Spacing},
+    layout::{Alignment, Constraint, Layout, Rect},
     style::{Color, Styled, Stylize},
-    text::{Line, Span},
+    text::Line,
     widgets::{
-        Block, BorderType, Clear, HighlightSpacing, List, ListDirection, ListItem, ListState,
-        Paragraph, StatefulWidget, Tabs, Widget,
+        Block, BorderType, HighlightSpacing, List, ListDirection, ListItem, ListState, StatefulWidget, Widget,
     },
 };
 

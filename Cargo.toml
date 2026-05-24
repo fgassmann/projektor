@@ -22,3 +22,9 @@ codegen-units = 1
 lto = true
 opt-level = "s"
 strip = true
+
+
+[profile.profiling]
+inherits = "dev"
+opt-level = 1
+debug = true

@@ -2,14 +2,12 @@ use crate::utils::markdown::PreviewStyle;
 use crate::utils::{render_tag, render_title};
 
 use crate::editor;
-use ratatui::prelude::{Alignment, Buffer, Color, Constraint, Layout, Rect, Style, Widget};
+use ratatui::prelude::{Alignment, Buffer, Constraint, Layout, Rect, Style, Widget};
 use ratatui::style::{Styled, Stylize};
-use ratatui::text::{Line, Span, Text};
-use ratatui::widgets::{
-    Block, BorderType, HighlightSpacing, List, ListDirection, ListItem, ListState, Paragraph,
-    StatefulWidget, Wrap,
-};
+use ratatui::text::{Line, Span, Text, ToText};
+use ratatui::widgets::{Block, BorderType, ListState, Paragraph, StatefulWidget, Wrap};
 use serde::{Deserialize, Serialize};
+use std::cell::OnceCell;
 use std::fs;
 use std::path::PathBuf;
 use toml;
@@ -58,6 +56,8 @@ pub struct Project {
     pub tags: Vec<String>,
     pub language: Option<String>,
     pub description: Option<String>,
+    #[serde(skip)]
+    pub preview: OnceCell<String>,
 }
 
 impl Config {
@@ -65,7 +65,7 @@ impl Config {
         let contents = toml::to_string_pretty(self).expect("Error: Unable to save modified config");
         fs::write("config_out.toml", contents).expect("Error: Unable to save modified config");
     }
-    pub fn load(path: PathBuf) -> Self {
+    pub fn load(_path: PathBuf) -> Self {
         todo!("TODO")
     }
 }
@@ -180,15 +180,20 @@ impl Widget for &Project {
             .title_top(render_title("README"))
             .border_type(BorderType::Rounded);
 
-        let text = fs::read_to_string(self.path.join(PathBuf::from("README.md")))
-            .ok()
-            .unwrap_or(String::from("No README in Project.\n"));
+        // todo!("Make this better so we don't reopen the file every frame...");
+        let text = self.preview.get_or_init(|| {
+            fs::read_to_string(self.path.join(PathBuf::from("README.md")))
+                .ok()
+                .unwrap_or(String::from("No README in Project.\n"))
+        });
         let md_opts = tui_markdown::Options::new(PreviewStyle);
-        let paragraph = Paragraph::new(tui_markdown::from_str_with_options(&text, &md_opts))
+        let paragraph = &Paragraph::new(tui_markdown::from_str_with_options(text, &md_opts))
+            // let paragraph = Paragraph::new(text)
             .wrap(Wrap { trim: true })
             .block(block)
             .left_aligned();
 
+        paragraph.render(top, buf);
         paragraph.render(top, buf);
         //endregion README
 
@@ -253,6 +258,7 @@ pub fn get_test_config() -> Config {
                             description: Some(String::from(
                                 "Utility to keep track of Projects from the commandline.\nTrust me It's very cool. I just don't know what eslse to say about it.\n Bla",
                             )),
+                            preview: OnceCell::new(),
                         },
                         Project {
                             path: PathBuf::from(
@@ -262,6 +268,7 @@ pub fn get_test_config() -> Config {
                             tags: vec!["GDM".into(), "Ricing".into()],
                             language: Some("Rust".into()),
                             description: None,
+                            preview: OnceCell::new(),
                         },
                         Project {
                             path: PathBuf::from("/home/fgassmann/Projects/Upstream/ratatui"),
@@ -269,6 +276,7 @@ pub fn get_test_config() -> Config {
                             tags: vec!["Tui".into()],
                             language: Some("Rust".into()),
                             description: None,
+                            preview: OnceCell::new(),
                         },
                         Project {
                             path: PathBuf::from("/home/fgassmann/Projects/Upstream/linux-retroism"),
@@ -276,6 +284,7 @@ pub fn get_test_config() -> Config {
                             tags: vec!["Ricing".into(), "Wayland".into()],
                             language: None,
                             description: None,
+                            preview: OnceCell::new(),
                         },
                     ],
                 },
@@ -289,6 +298,7 @@ pub fn get_test_config() -> Config {
                         description: Some(String::from(
                             "Trying out Raylib by implementing a simple Connect4 game. Has a strong solver the player can play against.",
                         )),
+                        preview: OnceCell::new(),
                     }],
                 },
                 Category {
@@ -305,6 +315,7 @@ pub fn get_test_config() -> Config {
                         description: Some(String::from(
                             "Trying out Raylib by implementing a simple Connect4 game. Has a strong solver the player can play against.",
                         )),
+                        preview: OnceCell::new(),
                     }],
                 },
             ],

@@ -1,12 +1,12 @@
 use super::{EditorEvent, InputField, MultiLineInput, PathInput, SingleLineInput};
 use crate::config::Project;
-use crate::event::AppEvent;
 use crate::utils::{THEME, render_title};
 
-use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
-use ratatui::prelude::{Alignment, Buffer, Color, Constraint, Layout, Line, Rect, Style, Widget};
-use ratatui::widgets::{Block, BorderType, Clear, Padding, Paragraph, WidgetRef};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::prelude::{Buffer, Constraint, Layout, Line, Rect, Widget};
+use ratatui::widgets::{Block, BorderType, Clear, Padding};
 
+use std::cell::OnceCell;
 use std::string::ToString;
 
 #[derive(Debug, PartialEq, Eq, Clone, Copy)]
@@ -92,9 +92,6 @@ impl ProjectEditor {
             Mode::Explorer => match key_event.code {
                 KeyCode::Enter | KeyCode::Esc | KeyCode::Char('q' | 'Q') => {
                     self.mode = Mode::Normal
-                }
-                KeyCode::Char('a' | 'A') => {
-                    todo!("Create directory");
                 }
                 _ => {
                     self.path.input(key_event);
@@ -211,6 +208,7 @@ impl Into<(String, Project)> for ProjectEditor {
                 tags,
                 language: self.lang.result(),
                 description: self.desc.result(),
+                preview: OnceCell::new(),
             },
         )
     }

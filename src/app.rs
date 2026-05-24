@@ -3,7 +3,7 @@ use crate::event::{AppEvent, Event, EventHandler};
 use crate::config::{self, get_test_config};
 use color_eyre::eyre::eyre;
 use ratatui::DefaultTerminal;
-use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::crossterm::event::KeyEvent;
 
 /// Application.
 #[derive(Debug)]
