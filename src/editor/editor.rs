@@ -1,4 +1,4 @@
-use super::{InputField, MultiLineInput, PathInput, SingleLineInput};
+use super::{EditorEvent, InputField, MultiLineInput, PathInput, SingleLineInput};
 use crate::config::Project;
 use crate::event::AppEvent;
 use crate::utils::{THEME, render_title};
@@ -64,14 +64,14 @@ impl ProjectEditor {
     pub fn handle_key_event(
         &mut self,
         key_event: KeyEvent,
-    ) -> color_eyre::Result<Option<AppEvent>> {
+    ) -> color_eyre::Result<Option<EditorEvent>> {
         match &mut self.mode {
             Mode::Normal => match key_event.code {
                 KeyCode::Esc => {
-                    return Ok(Some(AppEvent::CancelEdit));
+                    return Ok(Some(EditorEvent::Cancel));
                 }
                 KeyCode::Char('s' | 'S') if key_event.modifiers == KeyModifiers::CONTROL => {
-                    return Ok(Some(AppEvent::SaveEdit));
+                    return Ok(Some(EditorEvent::Save));
                 }
                 KeyCode::Tab => self.selected = self.selected.next(),
                 KeyCode::BackTab => self.selected = self.selected.prev(),

@@ -13,5 +13,10 @@ fn main() -> color_eyre::Result<()> {
     let terminal = ratatui::init();
     let result = App::new().run(terminal);
     ratatui::restore();
-    result
+    if let Ok(str) = result {
+        println!("{}", str);
+        Ok(())
+    } else {
+        result.map(|_| ())
+    }
 }

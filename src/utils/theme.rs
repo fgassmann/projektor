@@ -1,5 +1,3 @@
-use std::rc::Rc;
-
 use ratatui::style::{Color, Modifier, Style};
 use ratatui::text::Line;
 use ratatui::widgets::Block;

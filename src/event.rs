@@ -18,12 +18,9 @@ pub enum Event {
 #[derive(Clone, Debug)]
 pub enum AppEvent {
     Quit,
-    Down,
-    Up,
-    Edit,
-    New,
-    CancelEdit,
-    SaveEdit,
+    Save,
+    NextTab,
+    PrevTab,
 }
 
 /// Terminal event handler.
