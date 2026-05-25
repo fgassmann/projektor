@@ -2,11 +2,11 @@ use crate::utils::markdown::PreviewStyle;
 use crate::utils::{render_tag, render_title};
 
 use crate::editor;
-use ratatui::prelude::{Alignment, Buffer, Color, Constraint, Layout, Rect, Style, Widget};
+use ratatui::prelude::{Alignment, Buffer, Constraint, Layout, Rect, Style, Widget};
 use ratatui::style::{Styled, Stylize};
 use ratatui::text::{Line, Span, Text};
 use ratatui::widgets::{
-    Block, BorderType, HighlightSpacing, List, ListDirection, ListItem, ListState, Paragraph,
+    Block, BorderType, ListState, Paragraph,
     StatefulWidget, Wrap,
 };
 use serde::{Deserialize, Serialize};
@@ -65,7 +65,7 @@ impl Config {
         let contents = toml::to_string_pretty(self).expect("Error: Unable to save modified config");
         fs::write("config_out.toml", contents).expect("Error: Unable to save modified config");
     }
-    pub fn load(path: PathBuf) -> Self {
+    pub fn load(_path: PathBuf) -> Self {
         todo!("TODO")
     }
 }

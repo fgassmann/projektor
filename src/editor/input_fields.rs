@@ -1,9 +1,9 @@
-use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
+use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::prelude::{Buffer, Rect, Style, Widget};
 use ratatui::style::Modifier;
 use ratatui::text::Line;
 use ratatui::widgets::{Block, BorderType, WidgetRef};
-use ratatui_textarea::{CursorMove, Input, Key, TextArea, WrapMode};
+use ratatui_textarea::{CursorMove, Input, TextArea, WrapMode};
 
 use crate::utils::{THEME, explorer_theme};
 use ratatui_explorer::{FileExplorer, FileExplorerBuilder};

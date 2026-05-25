@@ -1,11 +1,10 @@
 use super::{EditorEvent, InputField, MultiLineInput, PathInput, SingleLineInput};
 use crate::config::Project;
-use crate::event::AppEvent;
 use crate::utils::{THEME, render_title};
 
-use ratatui::crossterm::event::{Event, KeyCode, KeyEvent, KeyModifiers};
-use ratatui::prelude::{Alignment, Buffer, Color, Constraint, Layout, Line, Rect, Style, Widget};
-use ratatui::widgets::{Block, BorderType, Clear, Padding, Paragraph, WidgetRef};
+use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::prelude::{Buffer, Constraint, Layout, Line, Rect, Widget};
+use ratatui::widgets::{Block, BorderType, Clear, Padding};
 
 use std::string::ToString;
 

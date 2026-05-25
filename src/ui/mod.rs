@@ -1,10 +1,9 @@
 use ratatui::{
     buffer::Buffer,
-    layout::{Alignment, Constraint, Layout, Rect, Spacing},
+    layout::{Constraint, Layout, Rect},
     text::{Line, Span},
     widgets::{
-        Block, BorderType, Clear, HighlightSpacing, List, ListDirection, ListItem, ListState,
-        Paragraph, StatefulWidget, Tabs, Widget,
+        Block, BorderType, Clear, StatefulWidget, Tabs, Widget,
     },
 };
 
