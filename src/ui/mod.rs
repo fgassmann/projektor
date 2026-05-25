@@ -8,7 +8,7 @@ use ratatui::{
     },
 };
 
-use crate::app::{App, AppMode};
+use crate::app::{App, AppMode, Popup};
 use crate::utils::THEME;
 
 impl Widget for &mut App {
@@ -19,6 +19,7 @@ impl Widget for &mut App {
             Constraint::Length(1),
         ])
         .areas(area);
+
         let [left, right] =
             Layout::horizontal([Constraint::Fill(2), Constraint::Fill(3)]).areas(top);
         self.config.projects.render(left, buf);
@@ -29,8 +30,10 @@ impl Widget for &mut App {
         if let AppMode::EditingProject(e) | AppMode::CreatingProject(e) = &mut self.mode {
             e.render(area, buf);
         }
-        if let AppMode::Error(msg, _) = &self.mode {
-            self.render_error(msg, bottom, buf);
+        if let Some(msg) = &self.popups.last() {
+            match msg {
+                Popup::Error(e) => self.render_error(e, bottom, buf),
+            }
         }
     }
 }

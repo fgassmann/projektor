@@ -2,6 +2,7 @@ use crate::event::{AppEvent, Event, EventHandler};
 
 use crate::config::{self, get_test_config};
 use crate::editor;
+use color_eyre::eyre::eyre;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 
@@ -12,7 +13,13 @@ pub struct App {
     pub events: EventHandler,
 
     pub mode: AppMode,
+    pub popups: Vec<Popup>,
     pub config: config::Config,
+}
+
+#[derive(Debug)]
+pub enum Popup {
+    Error(String),
 }
 
 #[derive(Debug)]
@@ -20,7 +27,6 @@ pub enum AppMode {
     ProjectView,
     EditingProject(editor::ProjectEditor),
     CreatingProject(editor::ProjectEditor),
-    Error(String, Box<AppMode>),
 }
 
 impl Default for App {
@@ -30,6 +36,7 @@ impl Default for App {
             events: EventHandler::new(),
 
             mode: AppMode::ProjectView,
+            popups: Vec::new(),
             config: get_test_config(),
         }
     }
@@ -42,12 +49,15 @@ impl App {
     }
 
     /// Run the application's main loop.
-    pub fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<()> {
+    pub fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<String> {
         while self.running {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             self.handle_events()?;
         }
-        Ok(())
+        if let Some((_, p)) = self.config.projects.get_from_rendered() {
+            return Ok(p.path.to_string_lossy().to_string());
+        }
+        Err(eyre!("Nothing Selected"))
     }
 
     pub fn handle_events(&mut self) -> color_eyre::Result<()> {
@@ -76,6 +86,9 @@ impl App {
     }
 
     pub fn handle_key_event(&mut self, key_event: KeyEvent) -> color_eyre::Result<()> {
+        if !self.popups.is_empty() {
+            self.popups.pop();
+        }
         match &mut self.mode {
             AppMode::ProjectView => match key_event.code {
                 KeyCode::Esc | KeyCode::Char('q' | 'Q') => self.events.send(AppEvent::Quit),
@@ -91,15 +104,13 @@ impl App {
                     self.events.send(AppEvent::New);
                 }
                 KeyCode::Char('d' | 'D') => todo!("Delete Currently selected"),
+                KeyCode::Enter => {}
                 _ => {}
             },
             AppMode::EditingProject(editor) | AppMode::CreatingProject(editor) => {
                 if let Some(e) = editor.handle_key_event(key_event)? {
                     self.events.send(e);
                 }
-            }
-            AppMode::Error(_, prev) => {
-                self.mode = std::mem::replace(prev, AppMode::ProjectView);
             }
         }
         Ok(())
@@ -134,14 +145,13 @@ impl App {
         }
         self.config.save();
     }
+
     fn edit_project(&mut self) {
         if let Some(p) = self.config.projects.get_from_rendered() {
             self.mode = AppMode::EditingProject(editor::ProjectEditor::from(p))
         } else {
-            self.mode = AppMode::Error(
-                String::from("Nothing selected"),
-                Box::new(AppMode::ProjectView),
-            )
+            self.popups
+                .push(Popup::Error(String::from("Nothing Selected")));
         }
     }
 }
