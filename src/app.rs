@@ -1,7 +1,6 @@
 use crate::event::{AppEvent, Event, EventHandler};
 
 use crate::config::{self, get_test_config};
-use crate::editor;
 use color_eyre::eyre::eyre;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -12,7 +11,7 @@ pub struct App {
     pub running: bool,
     pub events: EventHandler,
 
-    pub mode: AppMode,
+    pub tab: Tab,
     pub popups: Vec<Popup>,
     pub config: config::Config,
 }
@@ -23,10 +22,10 @@ pub enum Popup {
 }
 
 #[derive(Debug)]
-pub enum AppMode {
-    ProjectView,
-    EditingProject(editor::ProjectEditor),
-    CreatingProject(editor::ProjectEditor),
+pub enum Tab {
+    Projects,
+    Templates,
+    Settings,
 }
 
 impl Default for App {
@@ -35,7 +34,7 @@ impl Default for App {
             running: true,
             events: EventHandler::new(),
 
-            mode: AppMode::ProjectView,
+            tab: Tab::Projects,
             popups: Vec::new(),
             config: get_test_config(),
         }
@@ -72,14 +71,9 @@ impl App {
                 _ => {}
             },
             Event::App(app_event) => match app_event {
-                AppEvent::Down => self.config.projects.next(),
-                AppEvent::Up => self.config.projects.prev(),
                 AppEvent::Quit => self.quit(),
-
-                AppEvent::Edit => self.edit_project(),
-                AppEvent::New => self.new_project(),
-                AppEvent::SaveEdit => self.save_project(),
-                AppEvent::CancelEdit => self.mode = AppMode::ProjectView,
+                AppEvent::Save => self.config.save(),
+                _ => {}
             },
         }
         Ok(())
@@ -89,29 +83,21 @@ impl App {
         if !self.popups.is_empty() {
             self.popups.pop();
         }
-        match &mut self.mode {
-            AppMode::ProjectView => match key_event.code {
-                KeyCode::Esc | KeyCode::Char('q' | 'Q') => self.events.send(AppEvent::Quit),
-                KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
-                    self.events.send(AppEvent::Quit)
-                }
-                KeyCode::Char('j' | 'J') | KeyCode::Down => self.events.send(AppEvent::Down),
-                KeyCode::Char('k' | 'K') | KeyCode::Up => self.events.send(AppEvent::Up),
-                KeyCode::Char('e' | 'E') => {
-                    self.events.send(AppEvent::Edit);
-                }
-                KeyCode::Char('n' | 'N') => {
-                    self.events.send(AppEvent::New);
-                }
-                KeyCode::Char('d' | 'D') => todo!("Delete Currently selected"),
-                KeyCode::Enter => {}
-                _ => {}
-            },
-            AppMode::EditingProject(editor) | AppMode::CreatingProject(editor) => {
-                if let Some(e) = editor.handle_key_event(key_event)? {
+        match &mut self.tab {
+            Tab::Projects => {
+                if let Some(e) = self
+                    .config
+                    .projects
+                    .handle_key_event(key_event)
+                    .unwrap_or_else(|e| {
+                        self.popups.push(Popup::Error(e.to_string()));
+                        None
+                    })
+                {
                     self.events.send(e);
                 }
             }
+            _ => {}
         }
         Ok(())
     }
@@ -120,38 +106,5 @@ impl App {
 
     fn quit(&mut self) {
         self.running = false;
-    }
-
-    fn new_project(&mut self) {
-        self.mode = AppMode::CreatingProject(editor::ProjectEditor::default());
-    }
-
-    fn save_project(&mut self) {
-        let mode = std::mem::replace(&mut self.mode, AppMode::ProjectView);
-        match mode {
-            AppMode::EditingProject(p) => {
-                let (cat, proj) = p.into();
-                self.config.projects.update_selected(proj, cat);
-            }
-            AppMode::CreatingProject(p) => {
-                let (cat, proj) = p.into();
-                self.config.projects.insert(proj, cat);
-            }
-            _ => {
-                unreachable!(
-                    "Error: trying to save while not creating or editing a project. This should not happen."
-                )
-            }
-        }
-        self.config.save();
-    }
-
-    fn edit_project(&mut self) {
-        if let Some(p) = self.config.projects.get_from_rendered() {
-            self.mode = AppMode::EditingProject(editor::ProjectEditor::from(p))
-        } else {
-            self.popups
-                .push(Popup::Error(String::from("Nothing Selected")));
-        }
     }
 }

@@ -1,5 +1,7 @@
 use crate::utils::markdown::PreviewStyle;
 use crate::utils::{render_tag, render_title};
+
+use crate::editor;
 use ratatui::prelude::{Alignment, Buffer, Color, Constraint, Layout, Rect, Style, Widget};
 use ratatui::style::{Styled, Stylize};
 use ratatui::text::{Line, Span, Text};
@@ -12,12 +14,27 @@ use std::fs;
 use std::path::PathBuf;
 use toml;
 
-#[derive(Deserialize, Serialize, PartialEq, Debug)]
+#[derive(Debug)]
+pub enum EditMode {
+    ProjectView,
+    EditingProject(editor::ProjectEditor),
+    CreatingProject(editor::ProjectEditor),
+}
+
+impl Default for EditMode {
+    fn default() -> Self {
+        Self::ProjectView
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(transparent)]
 pub struct ProjectList {
-    categories: Vec<Category>,
+    pub categories: Vec<Category>,
     #[serde(skip)]
-    state: ListState,
+    pub state: ListState,
+    #[serde(skip)]
+    pub mode: EditMode,
 }
 
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
@@ -26,7 +43,7 @@ pub struct Category {
     pub projects: Vec<Project>,
 }
 
-#[derive(Deserialize, Serialize, PartialEq, Debug)]
+#[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "PascalCase")]
 pub struct Config {
     // pub default: Default,
@@ -50,32 +67,6 @@ impl Config {
     }
     pub fn load(path: PathBuf) -> Self {
         todo!("TODO")
-    }
-}
-
-impl Widget for &ProjectList {
-    fn render(self, area: Rect, buf: &mut Buffer) {
-        let mut items: Vec<ListItem> = Vec::new();
-
-        for category in self.categories.iter() {
-            items.push(ListItem::from(format!("▼ {}", category.name)).bold());
-            for p in &category.projects {
-                items.push(ListItem::from(format!("  {}", p.name)));
-            }
-        }
-
-        let block = Block::bordered()
-            .title(render_title("Projects"))
-            .title_alignment(Alignment::Left)
-            .border_type(BorderType::Rounded);
-        let list = List::new(items)
-            .direction(ListDirection::TopToBottom)
-            .highlight_style(Color::Blue)
-            .block(block)
-            .highlight_spacing(HighlightSpacing::Always);
-        let mut mod_state = ListState::default().with_selected(self.state.selected());
-
-        StatefulWidget::render(list, area, buf, &mut mod_state);
     }
 }
 
@@ -248,6 +239,7 @@ pub fn get_test_config() -> Config {
     Config {
         projects: ProjectList {
             state: ListState::default(),
+            mode: EditMode::ProjectView,
             categories: vec![
                 Category {
                     name: String::from("Uncategorized"),

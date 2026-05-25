@@ -17,6 +17,6 @@ fn main() -> color_eyre::Result<()> {
         println!("{}", str);
         Ok(())
     } else {
-        result.map(|s| ())
+        result.map(|_| ())
     }
 }

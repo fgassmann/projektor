@@ -8,31 +8,24 @@ use ratatui::{
     },
 };
 
-use crate::app::{App, AppMode, Popup};
+use crate::app::{App, Popup};
 use crate::utils::THEME;
+mod projectview;
 
 impl Widget for &mut App {
     fn render(self, area: Rect, buf: &mut Buffer) {
-        let [nav, top, bottom] = Layout::vertical([
-            Constraint::Length(3),
-            Constraint::Fill(1),
-            Constraint::Length(1),
-        ])
-        .areas(area);
+        let [nav, main] =
+            Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).areas(area);
 
-        let [left, right] =
-            Layout::horizontal([Constraint::Fill(2), Constraint::Fill(3)]).areas(top);
-        self.config.projects.render(left, buf);
         self.render_nav_bar(nav, buf);
-        self.render_preview(right, buf);
-        self.render_usage(bottom, buf);
+        self.config.projects.render(main, buf);
 
-        if let AppMode::EditingProject(e) | AppMode::CreatingProject(e) = &mut self.mode {
-            e.render(area, buf);
-        }
         if let Some(msg) = &self.popups.last() {
+            let [_, keybinds] =
+                Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(area);
+
             match msg {
-                Popup::Error(e) => self.render_error(e, bottom, buf),
+                Popup::Error(e) => self.render_error(e, keybinds, buf),
             }
         }
     }
@@ -49,25 +42,11 @@ impl App {
         tabs.render(area, buf);
     }
 
-    fn render_usage(&self, area: Rect, buf: &mut Buffer) {
-        let line =
-            Line::from("[J/▲: Up] [K/▼: Down] [Enter: Select] [e: Edit] [n: New] [d: Delete]")
-                .style(THEME.key_bindings)
-                .centered();
-        line.render(area, buf);
-    }
     fn render_error(&self, err: &str, area: Rect, buf: &mut Buffer) {
         Clear.render(area, buf);
         let line = Line::from(format!("Error: {}  (Press any key to continue)", err))
             .style(THEME.error)
             .centered();
         line.render(area, buf);
-    }
-
-    fn render_preview(&self, area: Rect, buf: &mut Buffer) {
-        let project = self.config.projects.get_from_rendered();
-        if let Some(p) = project {
-            p.1.render(area, buf);
-        }
     }
 }
