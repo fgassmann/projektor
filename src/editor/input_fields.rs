@@ -1,8 +1,7 @@
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
-use ratatui::prelude::{Buffer, Rect, Style, Widget};
+use ratatui::prelude::{Buffer, Constraint, Layout, Line, Rect, Style, Widget};
 use ratatui::style::Modifier;
-use ratatui::text::Line;
-use ratatui::widgets::{Block, BorderType, WidgetRef};
+use ratatui::widgets::{Block, BorderType, Clear, Padding, WidgetRef};
 use ratatui_textarea::{CursorMove, Input, TextArea, WrapMode};
 
 use crate::utils::{THEME, explorer_theme};
@@ -11,8 +10,11 @@ use std::env;
 use std::path::PathBuf;
 use std::string::ToString;
 
+pub enum InputFieldEvent {}
+
 pub trait InputField {
     type Value;
+
     fn new(value: Option<Self::Value>) -> Self;
     fn input(&mut self, key_event: KeyEvent) -> bool;
     fn result(self) -> Option<Self::Value>;
@@ -69,6 +71,7 @@ impl InputField for SingleLineInput {
 #[derive(Debug)]
 pub struct PathInput {
     pub input: FileExplorer,
+    foldername: Option<SingleLineInput>,
 }
 
 impl InputField for PathInput {
@@ -85,11 +88,28 @@ impl InputField for PathInput {
                 .theme(explorer_theme())
                 .build()
                 .expect("Input invalid path"),
+            foldername: None,
         }
     }
 
     fn input(&mut self, key_event: KeyEvent) -> bool {
-        self.input.handle(&Event::Key(key_event)).is_ok()
+        if let Some(f) = &mut self.foldername {
+            match key_event.code {
+                KeyCode::Enter => {
+                    self.foldername = None;
+                    true
+                }
+                _ => f.input(key_event),
+            }
+        } else {
+            match key_event.code {
+                KeyCode::Char('a' | 'A') => {
+                    self.foldername = Some(SingleLineInput::new(None));
+                    true
+                }
+                _ => self.input.handle(&Event::Key(key_event)).is_ok(),
+            }
+        }
     }
 
     fn result(self) -> Option<PathBuf> {
@@ -111,8 +131,13 @@ impl InputField for PathInput {
 }
 
 impl PathInput {
-    pub fn render_popup(&self, area: Rect, buf: &mut Buffer) {
+    pub fn render_popup(&mut self, area: Rect, buf: &mut Buffer) {
         self.input.widget().render_ref(area, buf);
+        if let Some(f) = &mut self.foldername {
+            let centered_area = area.centered(Constraint::Max(80), Constraint::Max(3));
+            Clear.render(centered_area, buf);
+            f.render("Foldername", true, centered_area, buf);
+        }
     }
     pub fn result_infallinble(self) -> PathBuf {
         self.input.current().path.clone()
@@ -126,6 +151,7 @@ impl PathInput {
                 .working_file(path)
                 .theme(explorer_theme())
                 .build()?,
+            foldername: None,
         })
     }
 }
