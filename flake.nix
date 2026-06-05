@@ -15,20 +15,18 @@
     flake-utils.lib.eachDefaultSystem (system:
       let
         overlays = [
-          # This overlay adds the "rust-bin" package to nixpkgs
           (import rust-overlay)
         ];
-
-        # System-specific nixpkgs with rust-overlay applied
         pkgs = import nixpkgs { inherit system overlays; };
-
-        # Use the specific version of the Rust toolchain specified by the toolchain file
-        # #.fromRustupToolchainFile ./rust-toolchain.toml;
         localRust = pkgs.rust-bin.stable.latest.default.override {
           extensions = [
             "rust-src"
             "rust-analyzer"
             "clippy"
+          ];
+          targets = [
+            "x86_64-unknown-linux-gnu"
+            "x86_64-unknown-linux-musl"
           ];
         };
         # Other utilities commonly used in Rust projects (but not in this example project)

@@ -1,24 +1,161 @@
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
 use ratatui::prelude::{Buffer, Constraint, Layout, Line, Rect, Style, Widget};
 use ratatui::style::Modifier;
+use ratatui::text::Span;
 use ratatui::widgets::{Block, BorderType, Clear, Padding, WidgetRef};
 use ratatui_textarea::{CursorMove, Input, TextArea, WrapMode};
 
+use crate::error;
 use crate::utils::{THEME, explorer_theme};
 use ratatui_explorer::{FileExplorer, FileExplorerBuilder};
 use std::env;
+
+use std::fs;
 use std::path::PathBuf;
 use std::string::ToString;
 
-pub enum InputFieldEvent {}
+#[derive(Debug)]
+enum PathInputMode {
+    Normal,
+    Explorer,
+    Creating(SingleLineInput),
+    Error(String),
+}
 
-pub trait InputField {
-    type Value;
+#[derive(Debug)]
+pub struct PathInput {
+    mode: PathInputMode,
+    original: PathBuf,
+    input: FileExplorer,
+}
 
-    fn new(value: Option<Self::Value>) -> Self;
-    fn input(&mut self, key_event: KeyEvent) -> bool;
-    fn result(self) -> Option<Self::Value>;
-    fn render(&mut self, label: &str, selected: bool, area: Rect, buf: &mut Buffer);
+impl PathInput {
+    /// Returns true if it handled the event.
+    pub fn input(&mut self, key_event: KeyEvent) -> bool {
+        match &mut self.mode {
+            PathInputMode::Normal => {
+                if key_event.code == KeyCode::Enter {
+                    self.mode = PathInputMode::Explorer;
+                    true
+                } else {
+                    false
+                }
+            }
+            PathInputMode::Explorer => match key_event.code {
+                KeyCode::Enter | KeyCode::Esc | KeyCode::Char('q' | 'Q') => {
+                    self.mode = PathInputMode::Normal;
+                    true
+                }
+                KeyCode::Char('a' | 'A') => {
+                    self.mode = PathInputMode::Creating(SingleLineInput::new(None));
+                    true
+                }
+                _ => {
+                    if self.input.handle(&Event::Key(key_event)).is_err() {
+                        self.mode = PathInputMode::Error("Something went wrong!".into())
+                    }
+                    true
+                }
+            },
+            PathInputMode::Creating(textarea) => match key_event.code {
+                KeyCode::Enter => {
+                    if self.create_dir().is_err() {
+                        self.mode = PathInputMode::Error("Something went wrong!".into())
+                    }
+                    self.mode = PathInputMode::Explorer;
+                    true
+                }
+                _ => {
+                    textarea.input(key_event);
+                    true
+                }
+            },
+            _ => false,
+        }
+    }
+
+    fn create_dir(&mut self) -> std::io::Result<()> {
+        let mode = std::mem::replace(&mut self.mode, PathInputMode::Explorer);
+        if let PathInputMode::Creating(textarea) = mode {
+            if let Some(foldername) = textarea.result() {
+                let path = self.input.cwd().join(foldername);
+                fs::create_dir(&path)?;
+                self.input.set_cwd(path)?;
+            }
+        }
+
+        Ok(())
+    }
+
+    pub fn result(self) -> PathBuf {
+        self.input.current().path.clone()
+    }
+    pub fn render(&mut self, label: &str, selected: bool, area: Rect, buf: &mut Buffer) {
+        let mut block = Block::bordered()
+            .title(label)
+            .border_type(BorderType::Rounded);
+
+        if selected {
+            block = block.style(THEME.popup.selected);
+        }
+        let text = match &self.mode {
+            PathInputMode::Error(message) => {
+                block = block
+                    .title_bottom(Line::raw(format!("[{}]", message)).right_aligned())
+                    .style(THEME.error);
+                self.original.to_string_lossy()
+            }
+            _ => {
+                block = block.title_bottom(Line::raw("[Enter: Select]").right_aligned());
+                self.input.current().path.to_string_lossy()
+            }
+        };
+
+        let text_area = block.inner(area);
+        let line = Line::raw(text);
+        line.render(text_area, buf);
+        block.render(area, buf);
+    }
+
+    pub fn render_popup(&mut self, area: Rect, buf: &mut Buffer) {
+        match &mut self.mode {
+            PathInputMode::Explorer => {
+                Clear.render(area, buf);
+                self.input.widget().render_ref(area, buf);
+            }
+            PathInputMode::Creating(textarea) => {
+                Clear.render(area, buf);
+                self.input.widget().render_ref(area, buf);
+                let centered_area = area.centered(Constraint::Max(80), Constraint::Max(3));
+                Clear.render(centered_area, buf);
+                textarea.render("Foldername", true, centered_area, buf);
+            }
+            _ => {}
+        }
+    }
+
+    pub fn new(value: Option<PathBuf>) -> Self {
+        let path = value.unwrap_or(PathBuf::from(
+            env::var("HOME").unwrap_or(String::from("/home/")),
+        ));
+        let fe = FileExplorerBuilder::default()
+            .working_file(path.clone())
+            .theme(explorer_theme())
+            .build();
+        if let Ok(explorer) = fe {
+            PathInput {
+                input: explorer,
+                original: path,
+                mode: PathInputMode::Normal,
+            }
+        } else {
+            PathInput {
+                mode: PathInputMode::Error("The provided Path seems to be invalid!".into()),
+                original: path,
+                input: FileExplorerBuilder::default().build().unwrap(),
+            }
+        }
+    }
 }
 
 #[derive(Debug)]
@@ -26,10 +163,8 @@ pub struct SingleLineInput {
     pub input: TextArea<'static>,
 }
 
-impl InputField for SingleLineInput {
-    type Value = String;
-
-    fn new(value: Option<String>) -> Self {
+impl SingleLineInput {
+    pub fn new(value: Option<String>) -> Self {
         let mut ta = if let Some(s) = value {
             TextArea::from(vec![s.replace("\n", "")])
         } else {
@@ -39,120 +174,22 @@ impl InputField for SingleLineInput {
         ta.set_cursor_line_style(Style::default());
         SingleLineInput { input: ta }
     }
-
-    fn input(&mut self, key_event: KeyEvent) -> bool {
+    pub fn input(&mut self, key_event: KeyEvent) -> bool {
         match key_event.code {
             KeyCode::Enter => false,
             _ => self.input.input(Input::from(key_event)),
         }
     }
 
-    fn result(self) -> Option<String> {
+    pub fn result(self) -> Option<String> {
         self.input.into_lines().first().and_then(|s| {
             let s = s.trim().to_string();
             if s.is_empty() { None } else { Some(s) }
         })
     }
-    fn render(&mut self, label: &str, selected: bool, area: Rect, buf: &mut Buffer) {
-        let mut block = Block::bordered()
-            .title(label.to_string())
-            .border_type(BorderType::Rounded);
-        if selected {
-            self.input
-                .set_cursor_style(Style::default().add_modifier(Modifier::REVERSED));
-            block = block.style(THEME.popup.selected);
-        } else {
-            self.input.set_cursor_style(Style::default());
-        }
-        self.input.set_block(block);
-        self.input.render(area, buf);
-    }
-}
-#[derive(Debug)]
-pub struct PathInput {
-    pub input: FileExplorer,
-    foldername: Option<SingleLineInput>,
-}
 
-impl InputField for PathInput {
-    type Value = PathBuf;
-
-    fn new(value: Option<PathBuf>) -> Self {
-        let path = value.unwrap_or(PathBuf::from(
-            env::var("HOME").unwrap_or(String::from("/home/")),
-        ));
-        PathInput {
-            input: FileExplorerBuilder::default()
-                .working_file(path)
-                // .working_dir(path)
-                .theme(explorer_theme())
-                .build()
-                .expect("Input invalid path"),
-            foldername: None,
-        }
-    }
-
-    fn input(&mut self, key_event: KeyEvent) -> bool {
-        if let Some(f) = &mut self.foldername {
-            match key_event.code {
-                KeyCode::Enter => {
-                    self.foldername = None;
-                    true
-                }
-                _ => f.input(key_event),
-            }
-        } else {
-            match key_event.code {
-                KeyCode::Char('a' | 'A') => {
-                    self.foldername = Some(SingleLineInput::new(None));
-                    true
-                }
-                _ => self.input.handle(&Event::Key(key_event)).is_ok(),
-            }
-        }
-    }
-
-    fn result(self) -> Option<PathBuf> {
-        Some(self.input.current().path.clone())
-    }
-    fn render(&mut self, label: &str, selected: bool, area: Rect, buf: &mut Buffer) {
-        let mut block = Block::bordered()
-            .title(label)
-            .title_bottom(Line::raw("[Enter: Select]").right_aligned())
-            .border_type(BorderType::Rounded);
-        if selected {
-            block = block.style(THEME.popup.selected);
-        }
-        let text_area = block.inner(area);
-        let line = Line::raw(self.input.current().path.display().to_string());
-        line.render(text_area, buf);
-        block.render(area, buf);
-    }
-}
-
-impl PathInput {
-    pub fn render_popup(&mut self, area: Rect, buf: &mut Buffer) {
-        self.input.widget().render_ref(area, buf);
-        if let Some(f) = &mut self.foldername {
-            let centered_area = area.centered(Constraint::Max(80), Constraint::Max(3));
-            Clear.render(centered_area, buf);
-            f.render("Foldername", true, centered_area, buf);
-        }
-    }
-    pub fn result_infallinble(self) -> PathBuf {
-        self.input.current().path.clone()
-    }
-    pub fn try_new(value: Option<PathBuf>) -> Result<Self, std::io::Error> {
-        let path = value.unwrap_or(PathBuf::from(
-            env::var("HOME").unwrap_or(String::from("/home/")),
-        ));
-        Ok(PathInput {
-            input: FileExplorerBuilder::default()
-                .working_file(path)
-                .theme(explorer_theme())
-                .build()?,
-            foldername: None,
-        })
+    pub fn render(&mut self, label: &str, selected: bool, area: Rect, buf: &mut Buffer) {
+        render_text_area(&mut self.input, label, selected, area, buf);
     }
 }
 
@@ -161,9 +198,8 @@ pub struct MultiLineInput {
     pub input: TextArea<'static>,
 }
 
-impl InputField for MultiLineInput {
-    type Value = String;
-    fn new(value: Option<String>) -> Self {
+impl MultiLineInput {
+    pub fn new(value: Option<String>) -> Self {
         let mut ta = if let Some(s) = value {
             TextArea::from(s.split("\n").map(|s| s.to_string()))
         } else {
@@ -175,11 +211,11 @@ impl InputField for MultiLineInput {
         MultiLineInput { input: ta }
     }
 
-    fn input(&mut self, key_event: KeyEvent) -> bool {
+    pub fn input(&mut self, key_event: KeyEvent) -> bool {
         self.input.input(Input::from(key_event))
     }
 
-    fn result(self) -> Option<String> {
+    pub fn result(self) -> Option<String> {
         Some(
             self.input
                 .into_lines()
@@ -187,18 +223,27 @@ impl InputField for MultiLineInput {
                 .fold(String::new(), |start, line| format!("{start}{line}\n")),
         )
     }
-    fn render(&mut self, label: &str, selected: bool, area: Rect, buf: &mut Buffer) {
-        let mut block = Block::bordered()
-            .title(label.to_string())
-            .border_type(BorderType::Rounded);
-        if selected {
-            self.input
-                .set_cursor_style(Style::default().add_modifier(Modifier::REVERSED));
-            block = block.style(THEME.popup.selected);
-        } else {
-            self.input.set_cursor_style(Style::default());
-        }
-        self.input.set_block(block);
-        self.input.render(area, buf);
+    pub fn render(&mut self, label: &str, selected: bool, area: Rect, buf: &mut Buffer) {
+        render_text_area(&mut self.input, label, selected, area, buf);
     }
+}
+
+fn render_text_area(
+    input: &mut TextArea<'static>,
+    label: &str,
+    selected: bool,
+    area: Rect,
+    buf: &mut Buffer,
+) {
+    let mut block = Block::bordered()
+        .title(label.to_string())
+        .border_type(BorderType::Rounded);
+    if selected {
+        input.set_cursor_style(Style::default().add_modifier(Modifier::REVERSED));
+        block = block.style(THEME.popup.selected);
+    } else {
+        input.set_cursor_style(Style::default());
+    }
+    input.set_block(block);
+    input.render(area, buf);
 }
