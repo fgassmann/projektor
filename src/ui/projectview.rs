@@ -6,11 +6,12 @@ use ratatui::{
     style::{Color, Styled, Stylize},
     text::Line,
     widgets::{
-        Block, BorderType, HighlightSpacing, List, ListDirection, ListItem, ListState, StatefulWidget, Widget,
+        Block, BorderType, HighlightSpacing, List, ListDirection, ListItem, ListState,
+        StatefulWidget, Widget,
     },
 };
 
-use crate::config::{EditMode, ProjectList};
+use crate::config::{EditMode, Project, ProjectList};
 use crate::editor::{self, EditorEvent};
 use crate::event::AppEvent;
 use crate::utils::{THEME, render_title};
@@ -50,7 +51,8 @@ impl ProjectList {
                 KeyCode::Char('e' | 'E') => self.edit_project()?,
                 KeyCode::Char('n' | 'N') => self.new_project(),
 
-                KeyCode::Char('d' | 'D') => todo!("Delete Currently selected"),
+                KeyCode::Char('d' | 'D') => self.del_selected(),
+                KeyCode::Char('f' | 'F') => self.mode = EditMode::EditFilter,
                 KeyCode::Enter => {}
                 _ => {}
             },
@@ -66,6 +68,25 @@ impl ProjectList {
                     None => {}
                 }
             }
+
+            EditMode::EditFilter => match key_event.code {
+                KeyCode::Esc => self.mode = EditMode::ProjectView,
+                KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
+                    return Ok(Some(AppEvent::Quit));
+                }
+                KeyCode::Tab => return Ok(Some(AppEvent::NextTab)),
+                KeyCode::BackTab => return Ok(Some(AppEvent::PrevTab)),
+                KeyCode::Down => self.next(),
+                KeyCode::Up => self.prev(),
+                KeyCode::Backspace => {
+                    self.filter.pop();
+                }
+                KeyCode::Char(c) => {
+                    self.filter.push(c);
+                }
+                KeyCode::Enter => {}
+                _ => {}
+            },
         }
         Ok(None)
     }
@@ -73,15 +94,23 @@ impl ProjectList {
     fn render_list(&self, area: Rect, buf: &mut Buffer) {
         let mut items: Vec<ListItem> = Vec::new();
 
-        for category in self.categories.iter() {
+        for (category, projects) in self.filtered_categories() {
             items.push(ListItem::from(format!("▼ {}", category.name)).bold());
-            for p in &category.projects {
-                items.push(ListItem::from(format!("  {}", p.name)));
+            for p in projects {
+                if self.filter.is_empty() || p.name.contains(&self.filter) {
+                    items.push(ListItem::from(format!("  {}", p.name)));
+                }
             }
         }
 
+        let title = if !self.filter.is_empty() || matches!(self.mode, EditMode::EditFilter) {
+            format!("Projects/ {}", self.filter)
+        } else {
+            String::from("Projects")
+        };
+
         let block = Block::bordered()
-            .title(render_title("Projects"))
+            .title(render_title(&title))
             .title_alignment(Alignment::Left)
             .border_type(BorderType::Rounded);
         let list = List::new(items)
@@ -95,10 +124,11 @@ impl ProjectList {
     }
 
     fn render_usage(&self, area: Rect, buf: &mut Buffer) {
-        let line =
-            Line::from("[J/▲: Up] [K/▼: Down] [Enter: Select] [e: Edit] [n: New] [d: Delete]")
-                .style(THEME.key_bindings)
-                .centered();
+        let line = Line::from(
+            "[J/▲: Up] [K/▼: Down] [Enter: Select] [e: Edit] [n: New] [d: Delete] [f: Filter]",
+        )
+        .style(THEME.key_bindings)
+        .centered();
         line.render(area, buf);
     }
 
