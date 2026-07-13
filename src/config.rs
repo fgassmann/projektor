@@ -15,6 +15,7 @@ use toml;
 #[derive(Debug)]
 pub enum EditMode {
     ProjectView,
+    EditFilter,
     EditingProject(editor::ProjectEditor),
     CreatingProject(editor::ProjectEditor),
 }
@@ -33,6 +34,8 @@ pub struct ProjectList {
     pub state: ListState,
     #[serde(skip)]
     pub mode: EditMode,
+    #[serde(skip)]
+    pub filter: String,
 }
 
 #[derive(Deserialize, Serialize, PartialEq, Debug)]
@@ -71,68 +74,68 @@ impl Config {
 }
 
 impl ProjectList {
-    pub fn get_project(&self, mut index: usize) -> Option<(&str, &Project)> {
-        for category in &self.categories {
-            if index < category.projects.len() {
-                return Some((&category.name, &category.projects[index]));
-            }
-            index -= category.projects.len();
-        }
-        None
-    }
-    fn headermask(&self) -> Vec<bool> {
-        let mut items: Vec<bool> = Vec::new();
-        for category in self.categories.iter() {
-            items.push(true);
-            for _ in &category.projects {
-                items.push(false);
-            }
-        }
-        items
+    pub fn filtered_categories(&self) -> Vec<(&Category, Vec<&Project>)> {
+        self.categories
+            .iter()
+            .filter_map(|cat| {
+                let filtered: Vec<&Project> = cat
+                    .projects
+                    .iter()
+                    .filter(|p| self.filter.is_empty() || p.name.contains(&self.filter))
+                    .collect();
+                if filtered.is_empty() {
+                    None
+                } else {
+                    Some((cat, filtered))
+                }
+            })
+            .collect()
     }
     pub fn next(&mut self) {
-        let mask = self.headermask();
         self.state.select_next();
-        let index = self
-            .state
-            .selected()
-            .expect("Error: Couldn't select next Project. This should never happen.");
-        if let Some(m) = mask.get(index) {
-            if *m {
-                self.state.select_next();
-            }
-        } else {
-            self.state.select_previous();
+        // skip over categories
+        self.get_from_rendered()
+            .is_none()
+            .then(|| self.state.select_next());
+
+        let max_idx: usize = self
+            .filtered_categories()
+            .iter()
+            .map(|(_, p)| 1 + p.len())
+            .sum();
+        if let Some(render_idx) = self.state.selected() {
+            let idx = render_idx.min(max_idx - 1);
+            self.state.select(Some(idx));
         }
     }
     pub fn prev(&mut self) {
-        let mask = self.headermask();
-        self.state.select_previous();
-        let index = self
-            .state
+        // if nothing is selected selected.previous acts wierd,
+        // so we make sure something is selected
+        self.state
             .selected()
-            .expect("Error: Couldn't select previous Project. This should never happen.");
-        if let Some(m) = mask.get(index)
-            && index > 0
-        {
-            if *m {
-                self.state.select_previous();
-            }
-        } else {
-            self.state.select_next();
+            .is_none()
+            .then(|| self.state.select_first());
+        self.state.select_previous();
+        // skip over categories
+        self.get_from_rendered()
+            .is_none()
+            .then(|| self.state.select_previous());
+        if let Some(render_idx) = self.state.selected() {
+            self.state.select(Some(render_idx.max(1)));
         }
     }
-    pub fn get_from_rendered(&self) -> Option<(&str, &Project)> {
+
+    pub fn get_from_rendered(&self) -> Option<(&Category, &Project)> {
         if let Some(mut render_idx) = self.state.selected() {
-            for category in &self.categories {
+            for (cat, projects) in self.filtered_categories() {
                 if render_idx == 0 {
-                    return None; // header selected
-                }
+                    return None;
+                } // header selected
                 render_idx -= 1;
-                if render_idx < category.projects.len() {
-                    return Some((&category.name, &category.projects[render_idx]));
+                if render_idx < projects.len() {
+                    return Some((&cat, &projects[render_idx]));
                 }
-                render_idx -= category.projects.len();
+                render_idx -= projects.len();
             }
         }
         None
@@ -154,19 +157,7 @@ impl ProjectList {
         self.insert(project, category);
     }
     pub fn del_selected(&mut self) {
-        if let Some(mut render_idx) = self.state.selected() {
-            for category in &mut self.categories {
-                if render_idx == 0 {
-                    return; // header selected
-                }
-                render_idx -= 1;
-                if render_idx < category.projects.len() {
-                    category.projects.remove(render_idx);
-                    return;
-                }
-                render_idx -= category.projects.len();
-            }
-        }
+        todo!()
     }
 }
 
@@ -193,7 +184,6 @@ impl Widget for &Project {
             .block(block)
             .left_aligned();
 
-        paragraph.render(top, buf);
         paragraph.render(top, buf);
         //endregion README
 
@@ -245,6 +235,7 @@ pub fn get_test_config() -> Config {
         projects: ProjectList {
             state: ListState::default(),
             mode: EditMode::ProjectView,
+            filter: String::new(),
             categories: vec![
                 Category {
                     name: String::from("Uncategorized"),

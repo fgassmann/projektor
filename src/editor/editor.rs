@@ -1,5 +1,5 @@
 use super::{EditorEvent, MultiLineInput, PathInput, SingleLineInput};
-use crate::config::Project;
+use crate::config::{Category, Project};
 use crate::utils::{THEME, render_title};
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -145,8 +145,8 @@ impl Default for ProjectEditor {
     }
 }
 
-impl From<(&str, &Project)> for ProjectEditor {
-    fn from(proj: (&str, &Project)) -> Self {
+impl From<(&Category, &Project)> for ProjectEditor {
+    fn from(proj: (&Category, &Project)) -> Self {
         let (category, project) = proj;
         let tagstr = project
             .tags
@@ -155,7 +155,7 @@ impl From<(&str, &Project)> for ProjectEditor {
         ProjectEditor {
             selected: Fields::Name,
             name: SingleLineInput::new(Some(project.name.clone())),
-            category: SingleLineInput::new(Some(category.to_string())),
+            category: SingleLineInput::new(Some(category.name.to_string())),
             path: PathInput::new(Some(project.path.clone())),
             tags: SingleLineInput::new(Some(tagstr)),
             lang: SingleLineInput::new(project.language.clone()),
