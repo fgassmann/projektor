@@ -2,6 +2,7 @@ use crate::utils::markdown::PreviewStyle;
 use crate::utils::{render_tag, render_title};
 
 use crate::editor;
+use color_eyre::eyre::eyre;
 use ratatui::prelude::{Alignment, Buffer, Constraint, Layout, Rect, Style, Widget};
 use ratatui::style::{Styled, Stylize};
 use ratatui::text::{Line, Span, Text, ToText};
@@ -68,12 +69,16 @@ impl Config {
         let contents = toml::to_string_pretty(self).expect("Error: Unable to save modified config");
         fs::write("config_out.toml", contents).expect("Error: Unable to save modified config");
     }
-    pub fn load(_path: PathBuf) -> Self {
-        todo!("TODO")
+    pub fn load(path: PathBuf) -> color_eyre::Result<Self> {
+        let contents = fs::read_to_string(path)?;
+        toml::from_str(&contents).map_err(|_| eyre!("error parsing config"))
     }
 }
 
 impl ProjectList {
+    fn matches_filter(&self, project: &Project) -> bool {
+        self.filter.is_empty() || project.name.contains(&self.filter)
+    }
     pub fn filtered_categories(&self) -> Vec<(&Category, Vec<&Project>)> {
         self.categories
             .iter()
@@ -81,7 +86,7 @@ impl ProjectList {
                 let filtered: Vec<&Project> = cat
                     .projects
                     .iter()
-                    .filter(|p| self.filter.is_empty() || p.name.contains(&self.filter))
+                    .filter(|p| self.matches_filter(p))
                     .collect();
                 if filtered.is_empty() {
                     None
@@ -126,17 +131,39 @@ impl ProjectList {
     }
 
     pub fn get_from_rendered(&self) -> Option<(&Category, &Project)> {
-        if let Some(mut render_idx) = self.state.selected() {
-            for (cat, projects) in self.filtered_categories() {
-                if render_idx == 0 {
-                    return None;
-                } // header selected
-                render_idx -= 1;
-                if render_idx < projects.len() {
-                    return Some((&cat, &projects[render_idx]));
-                }
-                render_idx -= projects.len();
+        if let Some(render_idx) = self.state.selected() {
+            if let Some((ci, pi)) = self.project_indices_at(render_idx) {
+                let c = &self.categories[ci];
+                let p = &c.projects[pi];
+                return Some((c, p));
             }
+        }
+        None
+    }
+
+    pub fn project_indices_at(&self, visual_idx: usize) -> Option<(usize, usize)> {
+        let mut idx = visual_idx;
+        for (ci, cat) in self.categories.iter().enumerate() {
+            if !cat.projects.iter().any(|p| self.matches_filter(p)) {
+                continue;
+            }
+
+            if idx == 0 {
+                return None;
+            } // On header
+            idx -= 1; // Skip header
+
+            let mut count = 0;
+            for (pi, proj) in cat.projects.iter().enumerate() {
+                if !self.filter.is_empty() && !proj.name.contains(&self.filter) {
+                    continue;
+                }
+                if idx == count {
+                    return Some((ci, pi));
+                }
+                count += 1;
+            }
+            idx -= count;
         }
         None
     }
@@ -157,7 +184,12 @@ impl ProjectList {
         self.insert(project, category);
     }
     pub fn del_selected(&mut self) {
-        todo!()
+        if let Some(render_idx) = self.state.selected() {
+            if let Some((ci, pi)) = self.project_indices_at(render_idx) {
+                let c = &mut self.categories[ci];
+                c.projects.remove(pi);
+            }
+        }
     }
 }
 
@@ -227,89 +259,5 @@ impl Widget for &Project {
         let info = Paragraph::new(Text::from(info_lines));
         info.render(info_area, buf);
         //endregion INFOS
-    }
-}
-
-pub fn get_test_config() -> Config {
-    Config {
-        projects: ProjectList {
-            state: ListState::default(),
-            mode: EditMode::ProjectView,
-            filter: String::new(),
-            categories: vec![
-                Category {
-                    name: String::from("Uncategorized"),
-
-                    projects: vec![
-                        Project {
-                            path: PathBuf::from("/home/fgassmann/Projects/Rust/projektor"),
-                            name: String::from("Projektor"),
-                            tags: vec!["Tui".into()],
-                            language: Some("Rust".into()),
-                            description: Some(String::from(
-                                "Utility to keep track of Projects from the commandline.\nTrust me It's very cool. I just don't know what eslse to say about it.\n Bla",
-                            )),
-                            preview: OnceCell::new(),
-                        },
-                        Project {
-                            path: PathBuf::from(
-                                "/home/fgassmann/Projects/Rust/gdm-wallpaper-compositor",
-                            ),
-                            name: String::from("GDM-wallpaper-compositor"),
-                            tags: vec!["GDM".into(), "Ricing".into()],
-                            language: Some("Rust".into()),
-                            description: None,
-                            preview: OnceCell::new(),
-                        },
-                        Project {
-                            path: PathBuf::from("/home/fgassmann/Projects/Upstream/ratatui"),
-                            name: String::from("Ratatui"),
-                            tags: vec!["Tui".into()],
-                            language: Some("Rust".into()),
-                            description: None,
-                            preview: OnceCell::new(),
-                        },
-                        Project {
-                            path: PathBuf::from("/home/fgassmann/Projects/Upstream/linux-retroism"),
-                            name: String::from("Linux Retroism Rice"),
-                            tags: vec!["Ricing".into(), "Wayland".into()],
-                            language: None,
-                            description: None,
-                            preview: OnceCell::new(),
-                        },
-                    ],
-                },
-                Category {
-                    name: String::from("C"),
-                    projects: vec![Project {
-                        path: PathBuf::from("/home/fgassmann/Projects/C/connect4"),
-                        name: String::from("Connect 4 Raylib"),
-                        tags: vec![],
-                        language: Some("C".into()),
-                        description: Some(String::from(
-                            "Trying out Raylib by implementing a simple Connect4 game. Has a strong solver the player can play against.",
-                        )),
-                        preview: OnceCell::new(),
-                    }],
-                },
-                Category {
-                    name: String::from("Empty"),
-                    projects: vec![],
-                },
-                Category {
-                    name: String::from("Broken"),
-                    projects: vec![Project {
-                        path: PathBuf::from("/homes/fgassmann/Projects/C/connect4"),
-                        name: String::from("Connect 4 Raylib Broken"),
-                        tags: vec![],
-                        language: Some("C".into()),
-                        description: Some(String::from(
-                            "Trying out Raylib by implementing a simple Connect4 game. Has a strong solver the player can play against.",
-                        )),
-                        preview: OnceCell::new(),
-                    }],
-                },
-            ],
-        },
     }
 }

@@ -1,6 +1,7 @@
 use crate::event::{AppEvent, Event, EventHandler};
 
-use crate::config::{self, get_test_config};
+use crate::config::{self};
+use crate::test_config::get_test_config;
 use color_eyre::eyre::eyre;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event::KeyEvent;
