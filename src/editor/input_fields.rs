@@ -1,11 +1,10 @@
 use ratatui::crossterm::event::{Event, KeyCode, KeyEvent};
-use ratatui::prelude::{Buffer, Constraint, Layout, Line, Rect, Style, Widget};
+use ratatui::prelude::{Buffer, Constraint, Line, Rect, Style, Widget};
 use ratatui::style::Modifier;
-use ratatui::text::Span;
-use ratatui::widgets::{Block, BorderType, Clear, Padding, WidgetRef};
+use ratatui::widgets::{Block, BorderType, Clear, WidgetRef};
 use ratatui_textarea::{CursorMove, Input, TextArea, WrapMode};
 
-use crate::error;
+// use crate::error;
 use crate::utils::{THEME, explorer_theme};
 use ratatui_explorer::{FileExplorer, FileExplorerBuilder};
 use std::env;

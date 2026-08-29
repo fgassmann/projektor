@@ -3,7 +3,7 @@ use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Layout, Rect},
-    style::{Color, Styled, Stylize},
+    style::{Color, Stylize},
     text::Line,
     widgets::{
         Block, BorderType, HighlightSpacing, List, ListDirection, ListItem, ListState,
@@ -11,12 +11,12 @@ use ratatui::{
     },
 };
 
-use crate::config::{EditMode, Project, ProjectList};
+use crate::datamodel::{EditMode, Entry, ProjectListView};
 use crate::editor::{self, EditorEvent};
 use crate::event::AppEvent;
 use crate::utils::{THEME, render_title};
 
-impl Widget for &mut ProjectList {
+impl Widget for &mut ProjectListView {
     fn render(self, area: Rect, buf: &mut Buffer) {
         let [top, bottom] =
             Layout::vertical([Constraint::Fill(1), Constraint::Length(1)]).areas(area);
@@ -33,7 +33,7 @@ impl Widget for &mut ProjectList {
     }
 }
 
-impl ProjectList {
+impl ProjectListView {
     pub fn handle_key_event(
         &mut self,
         key_event: KeyEvent,
@@ -51,7 +51,9 @@ impl ProjectList {
                 KeyCode::Char('e' | 'E') => self.edit_project()?,
                 KeyCode::Char('n' | 'N') => self.new_project(),
 
-                KeyCode::Char('d' | 'D') => self.del_selected(),
+                KeyCode::Char('d' | 'D') => {
+                    self.del_selected();
+                }
                 KeyCode::Char('f' | 'F') => self.mode = EditMode::EditFilter,
                 KeyCode::Enter => {}
                 _ => {}
@@ -92,16 +94,19 @@ impl ProjectList {
     }
 
     fn render_list(&self, area: Rect, buf: &mut Buffer) {
-        let mut items: Vec<ListItem> = Vec::new();
-
-        for (category, projects) in self.filtered_categories() {
-            items.push(ListItem::from(format!("▼ {}", category.name)).bold());
-            for p in projects {
-                if self.filter.is_empty() || p.name.contains(&self.filter) {
-                    items.push(ListItem::from(format!("  {}", p.name)));
+        let items: Vec<ListItem> = self
+            .entries()
+            .iter()
+            .map(|e| match e {
+                Entry::Header(ci) => {
+                    ListItem::from(format!("▼ {}", self.projects.categories[*ci].name)).bold()
                 }
-            }
-        }
+                Entry::Project { category, index } => ListItem::from(format!(
+                    "  {}",
+                    self.projects.categories[*category].projects[*index].name
+                )),
+            })
+            .collect();
 
         let title = if !self.filter.is_empty() || matches!(self.mode, EditMode::EditFilter) {
             format!("Projects/ {}", self.filter)

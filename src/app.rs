@@ -1,6 +1,6 @@
 use crate::event::{AppEvent, Event, EventHandler};
 
-use crate::config::{self};
+use crate::datamodel::ProjectListView;
 use crate::test_config::get_test_config;
 use color_eyre::eyre::eyre;
 use ratatui::DefaultTerminal;
@@ -14,7 +14,7 @@ pub struct App {
 
     pub tab: Tab,
     pub popups: Vec<Popup>,
-    pub config: config::Config,
+    pub data: ProjectListView,
 }
 
 #[derive(Debug)]
@@ -37,7 +37,7 @@ impl Default for App {
 
             tab: Tab::Projects,
             popups: Vec::new(),
-            config: get_test_config(),
+            data: get_test_config(),
         }
     }
 }
@@ -54,7 +54,7 @@ impl App {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             self.handle_events()?;
         }
-        if let Some((_, p)) = self.config.projects.get_from_rendered() {
+        if let Some((_, p)) = self.data.get_from_rendered() {
             return Ok(p.path.to_string_lossy().to_string());
         }
         Err(eyre!("Nothing Selected"))
@@ -73,7 +73,7 @@ impl App {
             },
             Event::App(app_event) => match app_event {
                 AppEvent::Quit => self.quit(),
-                AppEvent::Save => self.config.save(),
+                AppEvent::Save => self.data.projects.save(),
                 _ => {}
             },
         }
@@ -86,15 +86,10 @@ impl App {
         }
         match &mut self.tab {
             Tab::Projects => {
-                if let Some(e) = self
-                    .config
-                    .projects
-                    .handle_key_event(key_event)
-                    .unwrap_or_else(|e| {
-                        self.popups.push(Popup::Error(e.to_string()));
-                        None
-                    })
-                {
+                if let Some(e) = self.data.handle_key_event(key_event).unwrap_or_else(|e| {
+                    self.popups.push(Popup::Error(e.to_string()));
+                    None
+                }) {
                     self.events.send(e);
                 }
             }

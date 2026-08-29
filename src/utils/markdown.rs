@@ -1,4 +1,4 @@
-use ratatui::style::{Style, Stylize};
+use ratatui::style::Style;
 use tui_markdown::StyleSheet;
 
 #[derive(Debug, Clone)]

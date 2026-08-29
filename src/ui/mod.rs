@@ -2,13 +2,12 @@ use ratatui::{
     buffer::Buffer,
     layout::{Constraint, Layout, Rect},
     text::{Line, Span},
-    widgets::{
-        Block, BorderType, Clear, StatefulWidget, Tabs, Widget,
-    },
+    widgets::{Block, BorderType, Clear, Tabs, Widget},
 };
 
 use crate::app::{App, Popup};
 use crate::utils::THEME;
+mod project;
 mod projectview;
 
 impl Widget for &mut App {
@@ -17,7 +16,7 @@ impl Widget for &mut App {
             Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).areas(area);
 
         self.render_nav_bar(nav, buf);
-        self.config.projects.render(main, buf);
+        self.data.render(main, buf);
 
         if let Some(msg) = &self.popups.last() {
             let [_, keybinds] =

@@ -1,5 +1,5 @@
 use super::{EditorEvent, MultiLineInput, PathInput, SingleLineInput};
-use crate::config::{Category, Project};
+use crate::persistence::{Category, Project};
 use crate::utils::{THEME, render_title};
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};

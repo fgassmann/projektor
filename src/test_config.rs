@@ -2,14 +2,14 @@ use std::{cell::OnceCell, path::PathBuf};
 
 use ratatui::widgets::ListState;
 
-use crate::config::*;
-
-pub fn get_test_config() -> Config {
-    Config {
+use crate::datamodel::{EditMode, ProjectListView};
+use crate::persistence::*;
+pub fn get_test_config() -> ProjectListView {
+    ProjectListView {
+        state: ListState::default(),
+        mode: EditMode::ProjectView,
+        filter: String::new(),
         projects: ProjectList {
-            state: ListState::default(),
-            mode: EditMode::ProjectView,
-            filter: String::new(),
             categories: vec![
                 Category {
                     name: String::from("Uncategorized"),
