@@ -1,8 +1,8 @@
+use crate::cli;
 use crate::event::{AppEvent, Event, EventHandler};
 
 use crate::datamodel::ProjectListView;
-use crate::test_config::get_test_config;
-use color_eyre::eyre::eyre;
+use clap::Parser;
 use ratatui::DefaultTerminal;
 use ratatui::crossterm::event::KeyEvent;
 
@@ -29,40 +29,33 @@ pub enum Tab {
     Settings,
 }
 
-impl Default for App {
-    fn default() -> Self {
-        Self {
+impl App {
+    pub fn new() -> color_eyre::Result<Self> {
+        let args = cli::Args::parse();
+        Ok(Self {
             running: true,
             events: EventHandler::new(),
 
             tab: Tab::Projects,
             popups: Vec::new(),
-            data: get_test_config(),
-        }
-    }
-}
-
-impl App {
-    /// Constructs a new instance of [`App`].
-    pub fn new() -> Self {
-        Self::default()
+            data: ProjectListView::new(&args)?,
+        })
     }
 
-    /// Run the application's main loop.
-    pub fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<String> {
+    pub fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<Option<String>> {
         while self.running {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             self.handle_events()?;
         }
         if let Some((_, p)) = self.data.get_from_rendered() {
-            return Ok(p.path.to_string_lossy().to_string());
+            return Ok(Some(p.path.to_string_lossy().to_string()));
         }
-        Err(eyre!("Nothing Selected"))
+        Ok(None)
     }
 
     pub fn handle_events(&mut self) -> color_eyre::Result<()> {
         match self.events.next()? {
-            Event::Tick => {} //self.tick(),
+            Event::Tick => {}
             Event::Crossterm(event) => match event {
                 ratatui::crossterm::event::Event::Key(key_event)
                     if key_event.kind == ratatui::crossterm::event::KeyEventKind::Press =>
@@ -73,7 +66,7 @@ impl App {
             },
             Event::App(app_event) => match app_event {
                 AppEvent::Quit => self.quit(),
-                AppEvent::Save => self.data.projects.save(),
+                AppEvent::Save => self.handle_err(self.data.projects.save()),
                 _ => {}
             },
         }
@@ -98,7 +91,11 @@ impl App {
         Ok(())
     }
 
-    // fn tick(&self) {}
+    fn handle_err(&mut self, result: color_eyre::Result<()>) {
+        if let Err(e) = result {
+            self.popups.push(Popup::Error(e.to_string()));
+        }
+    }
 
     fn quit(&mut self) {
         self.running = false;

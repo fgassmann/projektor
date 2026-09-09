@@ -23,9 +23,9 @@ pub fn render_tag(tag: &str) -> Vec<Span<'_>> {
         .fold(0, |acc: u16, b| acc.wrapping_add(b as u16))
         % 5;
     let (bg, fg) = match hash {
-        0 => (Color::Magenta, Color::White),
+        0 => (Color::Magenta, Color::Black),
         1 => (Color::Green, Color::Black),
-        2 => (Color::Yellow, Color::White),
+        2 => (Color::Yellow, Color::Black),
         3 => (Color::Blue, Color::Black),
         _ => (Color::White, Color::Black),
     };

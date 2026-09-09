@@ -54,21 +54,17 @@ pub struct ProjectEditor {
 }
 
 impl ProjectEditor {
-    pub fn handle_key_event(
-        &mut self,
-        key_event: KeyEvent,
-    ) -> color_eyre::Result<Option<EditorEvent>> {
-        if self.selected == Fields::Path {
-            if self.path.input(key_event) {
-                return Ok(None);
-            }
+    pub fn handle_key_event(&mut self, key_event: KeyEvent) -> Option<EditorEvent> {
+        if self.selected == Fields::Path && self.path.input(key_event) {
+            return None;
         }
+
         match key_event.code {
             KeyCode::Esc => {
-                return Ok(Some(EditorEvent::Cancel));
+                return Some(EditorEvent::Cancel);
             }
             KeyCode::Char('s' | 'S') if key_event.modifiers == KeyModifiers::CONTROL => {
-                return Ok(Some(EditorEvent::Save));
+                return Some(EditorEvent::Save);
             }
             KeyCode::Tab => self.selected = self.selected.next(),
             KeyCode::BackTab => self.selected = self.selected.prev(),
@@ -83,7 +79,31 @@ impl ProjectEditor {
                 };
             }
         }
-        Ok(None)
+        None
+    }
+
+    pub fn into_project(self) -> (String, Project) {
+        let tags = self
+            .tags
+            .result()
+            .unwrap_or_default()
+            .split(",")
+            .map(|s| s.trim().to_string())
+            .filter(|s| !s.is_empty())
+            .collect();
+        (
+            self.category
+                .result()
+                .unwrap_or(String::from("Uncategorized")),
+            Project {
+                path: self.path.result(),
+                name: self.name.result().unwrap_or(String::from("Unnamed")),
+                tags,
+                language: self.lang.result(),
+                description: self.desc.result(),
+                preview: OnceCell::new(),
+            },
+        )
     }
 }
 
@@ -161,31 +181,5 @@ impl From<(&Category, &Project)> for ProjectEditor {
             lang: SingleLineInput::new(project.language.clone()),
             desc: MultiLineInput::new(project.description.clone()),
         }
-    }
-}
-
-impl Into<(String, Project)> for ProjectEditor {
-    fn into(self) -> (String, Project) {
-        let tags = self
-            .tags
-            .result()
-            .unwrap_or_default()
-            .split(",")
-            .map(|s| s.trim().to_string())
-            .filter(|s| !s.is_empty())
-            .collect();
-        (
-            self.category
-                .result()
-                .unwrap_or(String::from("Uncategorized")),
-            Project {
-                path: self.path.result(),
-                name: self.name.result().unwrap_or(String::from("Unnamed")),
-                tags,
-                language: self.lang.result(),
-                description: self.desc.result(),
-                preview: OnceCell::new(),
-            },
-        )
     }
 }

@@ -7,7 +7,7 @@ use ratatui_textarea::{CursorMove, Input, TextArea, WrapMode};
 // use crate::error;
 use crate::utils::{THEME, explorer_theme};
 use ratatui_explorer::{FileExplorer, FileExplorerBuilder};
-use std::env;
+use std::env::home_dir;
 
 use std::fs;
 use std::path::PathBuf;
@@ -59,9 +59,10 @@ impl PathInput {
             PathInputMode::Creating(textarea) => match key_event.code {
                 KeyCode::Enter => {
                     if self.create_dir().is_err() {
-                        self.mode = PathInputMode::Error("Something went wrong!".into())
+                        self.mode = PathInputMode::Error("Error creating Folder!".into())
+                    } else {
+                        self.mode = PathInputMode::Explorer;
                     }
-                    self.mode = PathInputMode::Explorer;
                     true
                 }
                 _ => {
@@ -75,12 +76,12 @@ impl PathInput {
 
     fn create_dir(&mut self) -> std::io::Result<()> {
         let mode = std::mem::replace(&mut self.mode, PathInputMode::Explorer);
-        if let PathInputMode::Creating(textarea) = mode {
-            if let Some(foldername) = textarea.result() {
-                let path = self.input.cwd().join(foldername);
-                fs::create_dir(&path)?;
-                self.input.set_cwd(path)?;
-            }
+        if let PathInputMode::Creating(textarea) = mode
+            && let Some(foldername) = textarea.result()
+        {
+            let path = self.input.cwd().join(foldername);
+            fs::create_dir(&path)?;
+            self.input.set_cwd(path)?;
         }
 
         Ok(())
@@ -134,24 +135,30 @@ impl PathInput {
     }
 
     pub fn new(value: Option<PathBuf>) -> Self {
-        let path = value.unwrap_or(PathBuf::from(
-            env::var("HOME").unwrap_or(String::from("/home/")),
-        ));
-        let fe = FileExplorerBuilder::default()
-            .working_file(path.clone())
-            .theme(explorer_theme())
-            .build();
+        let mut selected_path = home_dir().unwrap_or_default();
+        // # TODO: working file vs working_dir + make this a setting?
+        // let value = None;
+        let fe = if let Some(path) = value {
+            selected_path = path;
+            FileExplorerBuilder::default().working_file(selected_path.clone())
+        } else {
+            FileExplorerBuilder::default().working_dir(selected_path.clone())
+        }
+        .theme(explorer_theme())
+        .build();
         if let Ok(explorer) = fe {
             PathInput {
                 input: explorer,
-                original: path,
+                original: selected_path,
                 mode: PathInputMode::Normal,
             }
         } else {
             PathInput {
+                input: FileExplorerBuilder::default()
+                    .build()
+                    .expect("Current directory could not be listed."),
+                original: selected_path,
                 mode: PathInputMode::Error("The provided Path seems to be invalid!".into()),
-                original: path,
-                input: FileExplorerBuilder::default().build().unwrap(),
             }
         }
     }
@@ -215,9 +222,12 @@ impl MultiLineInput {
     }
 
     pub fn result(self) -> Option<String> {
+        let lines = self.input.into_lines();
+        if lines.is_empty() || lines.iter().all(|l| l.is_empty()) {
+            return None;
+        }
         Some(
-            self.input
-                .into_lines()
+            lines
                 .iter()
                 .fold(String::new(), |start, line| format!("{start}{line}\n")),
         )

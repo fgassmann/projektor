@@ -20,12 +20,12 @@ impl Widget for &Project {
             .title_top(render_title("README"))
             .border_type(BorderType::Rounded);
 
-        // todo!("Make this better so we don't reopen the file every frame...");
         let text = self.preview.get_or_init(|| {
             fs::read_to_string(self.path.join(PathBuf::from("README.md")))
                 .ok()
                 .unwrap_or(String::from("No README in Project.\n"))
         });
+        // todo!("Make this better so we don't reparse the file every frame...");
         let md_opts = tui_markdown::Options::new(PreviewStyle);
         let paragraph = &Paragraph::new(tui_markdown::from_str_with_options(text, &md_opts))
             // let paragraph = Paragraph::new(text)

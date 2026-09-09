@@ -1,20 +1,16 @@
 use ratatui::widgets::ListState;
 
+use crate::cli::Args;
 use crate::editor::{self};
 use crate::persistence::{Category, Project, ProjectList};
 
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub enum EditMode {
+    #[default]
     ProjectView,
     EditFilter,
     EditingProject(editor::ProjectEditor),
     CreatingProject(editor::ProjectEditor),
-}
-
-impl Default for EditMode {
-    fn default() -> Self {
-        Self::ProjectView
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -32,6 +28,14 @@ pub struct ProjectListView {
 }
 
 impl ProjectListView {
+    pub fn new(args: &Args) -> color_eyre::Result<Self> {
+        Ok(ProjectListView {
+            state: ListState::default(),
+            mode: EditMode::ProjectView,
+            filter: String::new(),
+            projects: ProjectList::load(&args.config)?,
+        })
+    }
     pub fn entries(&self) -> Vec<Entry> {
         let mut out = Vec::new();
         for (ci, cat) in self.projects.categories.iter().enumerate() {
@@ -53,11 +57,11 @@ impl ProjectListView {
         out
     }
 
-    fn step(&mut self, dir: isize) {
+    fn step(&mut self, direction: isize) {
         let entries = self.entries();
         let mut i = self.state.selected().unwrap_or(0) as isize;
         loop {
-            i += dir;
+            i += direction;
             if i < 0 || i >= entries.len() as isize {
                 return;
             }

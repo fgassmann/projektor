@@ -31,4 +31,8 @@ impl StyleSheet for PreviewStyle {
     fn metadata_block(&self) -> Style {
         Style::new().light_yellow()
     }
+
+    fn code_block_fence(&self) -> &str {
+        ""
+    }
 }

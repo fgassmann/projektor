@@ -12,9 +12,10 @@ ratatui = "0.30.0"
 color-eyre = "0.6.3"
 serde = { version = "1.0.228", features = ["derive"] }
 toml = "1.1.0"
-tui-markdown = "0.3.7"
+tui-markdown = { version = "0.3.7",default-features = false, features = []}
 ratatui-textarea = "0.9.1"
 ratatui-explorer = "=0.3.0"
+clap = { version = "4.6.6", features = ["derive"] }
 
 # Read the optimization guideline for more details: https://ratatui.rs/recipes/apps/release-your-app/#optimizations
 [profile.release]

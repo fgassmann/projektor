@@ -6,7 +6,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-const TICK_FPS: f64 = 30.0;
+const TICK_FPS: f64 = 1.0;
 
 #[derive(Clone, Debug)]
 pub enum Event {

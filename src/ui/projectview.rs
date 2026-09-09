@@ -1,12 +1,14 @@
 use color_eyre::eyre::eyre;
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
+use ratatui::text::{Span, Text};
+use ratatui::widgets::{Paragraph, Wrap};
 use ratatui::{
     buffer::Buffer,
     layout::{Alignment, Constraint, Layout, Rect},
     style::{Color, Stylize},
     text::Line,
     widgets::{
-        Block, BorderType, HighlightSpacing, List, ListDirection, ListItem, ListState,
+        Block, BorderType, Clear, HighlightSpacing, List, ListDirection, ListItem, ListState,
         StatefulWidget, Widget,
     },
 };
@@ -53,13 +55,14 @@ impl ProjectListView {
 
                 KeyCode::Char('d' | 'D') => {
                     self.del_selected();
+                    return Ok(Some(AppEvent::Save));
                 }
                 KeyCode::Char('f' | 'F') => self.mode = EditMode::EditFilter,
                 KeyCode::Enter => {}
                 _ => {}
             },
             EditMode::EditingProject(editor) | EditMode::CreatingProject(editor) => {
-                match editor.handle_key_event(key_event)? {
+                match editor.handle_key_event(key_event) {
                     Some(EditorEvent::Save) => {
                         self.save_project();
                         return Ok(Some(AppEvent::Save));
@@ -93,7 +96,7 @@ impl ProjectListView {
         Ok(None)
     }
 
-    fn render_list(&self, area: Rect, buf: &mut Buffer) {
+    fn render_list(&mut self, area: Rect, buf: &mut Buffer) {
         let items: Vec<ListItem> = self
             .entries()
             .iter()
@@ -123,9 +126,8 @@ impl ProjectListView {
             .highlight_style(Color::Blue)
             .block(block)
             .highlight_spacing(HighlightSpacing::Always);
-        let mut mod_state = ListState::default().with_selected(self.state.selected());
 
-        StatefulWidget::render(list, area, buf, &mut mod_state);
+        StatefulWidget::render(list, area, buf, &mut self.state);
     }
 
     fn render_usage(&self, area: Rect, buf: &mut Buffer) {
@@ -142,7 +144,43 @@ impl ProjectListView {
         if let Some(p) = project {
             p.1.render(area, buf);
         } else {
-            // todo!("mkae something kinda like a landing page?")
+            let logo = Text::styled(
+                r"
+  ___          _        _           
+ | _ \_ _ ___ (_)___ __| |_ ___ _ _ 
+ |  _/ '_/ _ \| / -_) _|  _/ _ \ '_|
+ |_| |_| \___// \___\__|\__\___/_|  
+            |__/
+
+ -----------------------------------
+            ",
+                THEME.title,
+            );
+            let tooltip = Paragraph::new(Line::from(vec![
+                Span::raw("No project selected. Select a project with "),
+                Span::styled("[J/▲/K/▼]", THEME.description),
+                Span::raw(" or create a new project with "),
+                Span::styled("[N]", THEME.description),
+                Span::raw("."),
+            ]))
+            .alignment(ratatui::layout::HorizontalAlignment::Center)
+            .wrap(Wrap::default());
+            let block = Block::bordered().border_type(BorderType::Rounded);
+            let centered_area = block.inner(area).centered(
+                Constraint::Length(logo.width().try_into().unwrap()),
+                Constraint::Fill(1),
+            );
+            let vertical: [Rect; 3] = Layout::vertical([
+                Constraint::Length(logo.height().try_into().unwrap()),
+                Constraint::Length(5),
+                Constraint::Max(10),
+            ])
+            .flex(ratatui::layout::Flex::Center)
+            .areas(centered_area);
+            block.render(area, buf);
+            Clear.render(centered_area, buf);
+            logo.render(vertical[0], buf);
+            tooltip.render(vertical[1], buf);
         }
     }
 
@@ -150,11 +188,11 @@ impl ProjectListView {
         let mode = std::mem::replace(&mut self.mode, EditMode::ProjectView);
         match mode {
             EditMode::EditingProject(p) => {
-                let (cat, proj) = p.into();
+                let (cat, proj) = p.into_project();
                 self.update_selected(proj, cat);
             }
             EditMode::CreatingProject(p) => {
-                let (cat, proj) = p.into();
+                let (cat, proj) = p.into_project();
                 self.insert(proj, cat);
             }
             _ => {
