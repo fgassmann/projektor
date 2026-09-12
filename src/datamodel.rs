@@ -1,8 +1,7 @@
 use ratatui::widgets::ListState;
 
-use crate::cli::Args;
+use crate::config::{Category, Project};
 use crate::editor::{self};
-use crate::persistence::{Category, Project, ProjectList};
 
 #[derive(Debug, Default)]
 pub enum EditMode {
@@ -21,24 +20,24 @@ pub enum Entry {
 
 #[derive(Debug)]
 pub struct ProjectListView {
-    pub projects: ProjectList,
+    pub categories: Vec<Category>,
     pub state: ListState,
     pub mode: EditMode,
     pub filter: String,
 }
 
 impl ProjectListView {
-    pub fn new(args: &Args) -> color_eyre::Result<Self> {
-        Ok(ProjectListView {
+    pub fn new(projects: Vec<Category>) -> Self {
+        ProjectListView {
             state: ListState::default(),
-            mode: EditMode::ProjectView,
+            mode: EditMode::default(),
             filter: String::new(),
-            projects: ProjectList::load(&args.config)?,
-        })
+            categories: projects,
+        }
     }
     pub fn entries(&self) -> Vec<Entry> {
         let mut out = Vec::new();
-        for (ci, cat) in self.projects.categories.iter().enumerate() {
+        for (ci, cat) in self.categories.iter().enumerate() {
             let hits: Vec<(usize, &Project)> = cat
                 .projects
                 .iter()
@@ -85,23 +84,18 @@ impl ProjectListView {
     pub fn get_from_rendered(&self) -> Option<(&Category, &Project)> {
         match self.entries().get(self.state.selected()?)? {
             Entry::Project { category, index } => Some((
-                &self.projects.categories[*category],
-                &self.projects.categories[*category].projects[*index],
+                &self.categories[*category],
+                &self.categories[*category].projects[*index],
             )),
             Entry::Header(_) => None,
         }
     }
 
     pub fn insert(&mut self, project: Project, category: String) {
-        if let Some(cat) = self
-            .projects
-            .categories
-            .iter_mut()
-            .find(|c| c.name == category)
-        {
+        if let Some(cat) = self.categories.iter_mut().find(|c| c.name == category) {
             cat.projects.push(project);
         } else {
-            self.projects.categories.push(Category {
+            self.categories.push(Category {
                 name: category,
                 projects: vec![project],
             })
@@ -114,7 +108,7 @@ impl ProjectListView {
     }
     pub fn del_selected(&mut self) -> Option<()> {
         if let Entry::Project { category, index } = self.entries().get(self.state.selected()?)? {
-            self.projects.categories[*category].projects.remove(*index);
+            self.categories[*category].projects.remove(*index);
             Some(())
         } else {
             None

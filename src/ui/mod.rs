@@ -16,7 +16,7 @@ impl Widget for &mut App {
             Layout::vertical([Constraint::Length(3), Constraint::Fill(1)]).areas(area);
 
         self.render_nav_bar(nav, buf);
-        self.data.render(main, buf);
+        self.projects.render(main, buf);
 
         if let Some(msg) = &self.popups.last() {
             let [_, keybinds] =

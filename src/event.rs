@@ -18,6 +18,7 @@ pub enum Event {
 #[derive(Clone, Debug)]
 pub enum AppEvent {
     Quit,
+    QuitWithSelected,
     Save,
     NextTab,
     PrevTab,

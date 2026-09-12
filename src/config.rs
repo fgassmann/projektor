@@ -9,21 +9,27 @@ use toml;
 
 #[derive(Deserialize, Serialize, Debug)]
 #[serde(rename_all = "PascalCase")]
-// #[serde(transparent)]
-pub struct ProjectList {
+pub struct Config {
     pub categories: Vec<Category>,
-    #[serde(skip)]
-    pub path: PathBuf,
+    pub settings: Settings,
 }
 
-#[derive(Deserialize, Serialize, PartialEq, Debug)]
+#[derive(Deserialize, Serialize, Debug, Clone)]
+#[serde(rename_all = "PascalCase")]
+pub struct Settings {
+    pub default_folder: Option<PathBuf>,
+    #[serde(skip)]
+    pub config_path: PathBuf,
+}
+
+#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct Category {
     pub name: String,
     pub projects: Vec<Project>,
 }
 
-#[derive(Deserialize, Serialize, PartialEq, Debug)]
+#[derive(Deserialize, Serialize, PartialEq, Debug, Clone)]
 #[serde(rename_all = "PascalCase")]
 pub struct Project {
     pub path: PathBuf,
@@ -35,21 +41,22 @@ pub struct Project {
     pub preview: OnceCell<String>,
 }
 
-impl ProjectList {
+impl Config {
     pub fn save(&self) -> color_eyre::Result<()> {
         let contents = toml::to_string_pretty(self)
             .expect("Error converting data to toml. This should not happen!");
-        if let Some(p) = self.path.parent()
+        if let Some(p) = self.settings.config_path.parent()
             && !p.exists()
         {
+            // I'm not sure this is something that realistically happens
             fs::create_dir_all(p).wrap_err(format!(
                 "Error saving config {} (missing parent directories)",
-                self.path.to_string_lossy()
+                p.to_string_lossy()
             ))?;
         };
-        fs::write(&self.path, contents).wrap_err(format!(
+        fs::write(&self.settings.config_path, contents).wrap_err(format!(
             "Error saving config {}",
-            self.path.to_string_lossy()
+            self.settings.config_path.to_string_lossy()
         ))?;
         Ok(())
     }
@@ -66,18 +73,21 @@ impl ProjectList {
                 .join("projektor")
                 .join("config.toml")
         };
-        let conf = fs::read_to_string(&path);
 
-        match conf {
+        match fs::read_to_string(&path) {
             Ok(content) => {
                 let mut data: Self =
                     toml::from_str(&content).wrap_err("Error parsing configuration file")?;
-                data.path = path;
+                data.settings.config_path = path;
                 Ok(data)
             }
-            Err(e) if e.kind() == ErrorKind::NotFound => Ok(ProjectList {
+            // If no config exists create a new one
+            Err(e) if e.kind() == ErrorKind::NotFound => Ok(Config {
                 categories: Vec::new(),
-                path,
+                settings: Settings {
+                    default_folder: None,
+                    config_path: path,
+                },
             }),
             Err(_) => Err(eyre!("Error loading configuration file.")),
         }

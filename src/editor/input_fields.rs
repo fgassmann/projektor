@@ -136,8 +136,6 @@ impl PathInput {
 
     pub fn new(value: Option<PathBuf>) -> Self {
         let mut selected_path = home_dir().unwrap_or_default();
-        // # TODO: working file vs working_dir + make this a setting?
-        // let value = None;
         let fe = if let Some(path) = value {
             selected_path = path;
             FileExplorerBuilder::default().working_file(selected_path.clone())

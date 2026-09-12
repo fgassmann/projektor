@@ -1,13 +1,13 @@
-use std::process::{ExitCode, exit};
+use std::process::exit;
 
 use crate::app::App;
 
 pub mod app;
 pub mod cli;
+pub mod config;
 pub mod datamodel;
 pub mod editor;
 pub mod event;
-pub mod persistence;
 pub mod ui;
 pub mod utils;
 

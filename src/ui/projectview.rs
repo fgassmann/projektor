@@ -8,11 +8,12 @@ use ratatui::{
     style::{Color, Stylize},
     text::Line,
     widgets::{
-        Block, BorderType, Clear, HighlightSpacing, List, ListDirection, ListItem, ListState,
-        StatefulWidget, Widget,
+        Block, BorderType, Clear, HighlightSpacing, List, ListDirection, ListItem, StatefulWidget,
+        Widget,
     },
 };
 
+use crate::config::Settings;
 use crate::datamodel::{EditMode, Entry, ProjectListView};
 use crate::editor::{self, EditorEvent};
 use crate::event::AppEvent;
@@ -39,6 +40,7 @@ impl ProjectListView {
     pub fn handle_key_event(
         &mut self,
         key_event: KeyEvent,
+        settings: &Settings,
     ) -> color_eyre::Result<Option<AppEvent>> {
         match &mut self.mode {
             EditMode::ProjectView => match key_event.code {
@@ -46,19 +48,18 @@ impl ProjectListView {
                 KeyCode::Char('c' | 'C') if key_event.modifiers == KeyModifiers::CONTROL => {
                     return Ok(Some(AppEvent::Quit));
                 }
+                KeyCode::Enter => return Ok(Some(AppEvent::QuitWithSelected)),
                 KeyCode::Tab => return Ok(Some(AppEvent::NextTab)),
                 KeyCode::BackTab => return Ok(Some(AppEvent::PrevTab)),
                 KeyCode::Char('j' | 'J') | KeyCode::Down => self.next(),
                 KeyCode::Char('k' | 'K') | KeyCode::Up => self.prev(),
                 KeyCode::Char('e' | 'E') => self.edit_project()?,
-                KeyCode::Char('n' | 'N') => self.new_project(),
-
+                KeyCode::Char('n' | 'N') => self.new_project(settings),
                 KeyCode::Char('d' | 'D') => {
                     self.del_selected();
                     return Ok(Some(AppEvent::Save));
                 }
                 KeyCode::Char('f' | 'F') => self.mode = EditMode::EditFilter,
-                KeyCode::Enter => {}
                 _ => {}
             },
             EditMode::EditingProject(editor) | EditMode::CreatingProject(editor) => {
@@ -102,11 +103,11 @@ impl ProjectListView {
             .iter()
             .map(|e| match e {
                 Entry::Header(ci) => {
-                    ListItem::from(format!("▼ {}", self.projects.categories[*ci].name)).bold()
+                    ListItem::from(format!("▼ {}", self.categories[*ci].name)).bold()
                 }
                 Entry::Project { category, index } => ListItem::from(format!(
                     "  {}",
-                    self.projects.categories[*category].projects[*index].name
+                    self.categories[*category].projects[*index].name
                 )),
             })
             .collect();
@@ -211,7 +212,7 @@ impl ProjectListView {
         }
         Ok(())
     }
-    fn new_project(&mut self) {
-        self.mode = EditMode::CreatingProject(editor::ProjectEditor::default())
+    fn new_project(&mut self, settings: &Settings) {
+        self.mode = EditMode::CreatingProject(editor::ProjectEditor::new(settings))
     }
 }

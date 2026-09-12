@@ -1,4 +1,5 @@
 use crate::cli;
+use crate::config::{Config, Settings};
 use crate::event::{AppEvent, Event, EventHandler};
 
 use crate::datamodel::ProjectListView;
@@ -9,12 +10,21 @@ use ratatui::crossterm::event::KeyEvent;
 /// Application.
 #[derive(Debug)]
 pub struct App {
-    pub running: bool,
+    pub state: AppState,
     pub events: EventHandler,
 
     pub tab: Tab,
     pub popups: Vec<Popup>,
-    pub data: ProjectListView,
+    pub projects: ProjectListView,
+    pub settings: Settings,
+}
+
+#[derive(Debug, Default)]
+pub enum AppState {
+    #[default]
+    Running,
+    Exit,
+    Result(String),
 }
 
 #[derive(Debug)]
@@ -32,25 +42,39 @@ pub enum Tab {
 impl App {
     pub fn new() -> color_eyre::Result<Self> {
         let args = cli::Args::parse();
+        let Config {
+            categories,
+            settings,
+        } = Config::load(&args.config)?;
         Ok(Self {
-            running: true,
+            state: AppState::Running,
             events: EventHandler::new(),
 
             tab: Tab::Projects,
             popups: Vec::new(),
-            data: ProjectListView::new(&args)?,
+            projects: ProjectListView::new(categories),
+            settings,
         })
+    }
+    pub fn save(&self) -> color_eyre::Result<()> {
+        let cfg = Config {
+            categories: self.projects.categories.clone(),
+            settings: self.settings.clone(),
+        };
+        cfg.save()?;
+        Ok(())
     }
 
     pub fn run(mut self, mut terminal: DefaultTerminal) -> color_eyre::Result<Option<String>> {
-        while self.running {
+        while matches!(self.state, AppState::Running) {
             terminal.draw(|frame| frame.render_widget(&mut self, frame.area()))?;
             self.handle_events()?;
         }
-        if let Some((_, p)) = self.data.get_from_rendered() {
-            return Ok(Some(p.path.to_string_lossy().to_string()));
+        if let AppState::Result(p) = self.state {
+            Ok(Some(p))
+        } else {
+            Ok(None)
         }
-        Ok(None)
     }
 
     pub fn handle_events(&mut self) -> color_eyre::Result<()> {
@@ -65,8 +89,18 @@ impl App {
                 _ => {}
             },
             Event::App(app_event) => match app_event {
-                AppEvent::Quit => self.quit(),
-                AppEvent::Save => self.handle_err(self.data.projects.save()),
+                // TODO Fix this:
+                AppEvent::Quit => self.state = AppState::Exit,
+                AppEvent::QuitWithSelected => {
+                    if let Some((_, p)) = self.projects.get_from_rendered() {
+                        self.state = AppState::Result(p.path.to_string_lossy().to_string());
+                    } else {
+                        self.state = AppState::Exit;
+                    }
+                }
+                AppEvent::Save => self.save().unwrap_or_else(|e| {
+                    self.error_popup(e);
+                }),
                 _ => {}
             },
         }
@@ -79,10 +113,14 @@ impl App {
         }
         match &mut self.tab {
             Tab::Projects => {
-                if let Some(e) = self.data.handle_key_event(key_event).unwrap_or_else(|e| {
-                    self.popups.push(Popup::Error(e.to_string()));
-                    None
-                }) {
+                if let Some(e) = self
+                    .projects
+                    .handle_key_event(key_event, &self.settings)
+                    .unwrap_or_else(|e| {
+                        self.error_popup(e);
+                        None
+                    })
+                {
                     self.events.send(e);
                 }
             }
@@ -91,13 +129,7 @@ impl App {
         Ok(())
     }
 
-    fn handle_err(&mut self, result: color_eyre::Result<()>) {
-        if let Err(e) = result {
-            self.popups.push(Popup::Error(e.to_string()));
-        }
-    }
-
-    fn quit(&mut self) {
-        self.running = false;
+    fn error_popup(&mut self, err: color_eyre::Report) {
+        self.popups.push(Popup::Error(err.to_string()));
     }
 }

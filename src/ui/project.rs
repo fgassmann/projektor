@@ -8,7 +8,7 @@ use ratatui::widgets::{Block, BorderType, Paragraph, Wrap};
 use std::fs;
 use std::path::PathBuf;
 
-use crate::persistence::Project;
+use crate::config::Project;
 
 impl Widget for &Project {
     fn render(self, area: Rect, buf: &mut Buffer) {

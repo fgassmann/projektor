@@ -1,5 +1,5 @@
 use super::{EditorEvent, MultiLineInput, PathInput, SingleLineInput};
-use crate::persistence::{Category, Project};
+use crate::config::{Category, Project, Settings};
 use crate::utils::{THEME, render_title};
 
 use ratatui::crossterm::event::{KeyCode, KeyEvent, KeyModifiers};
@@ -54,6 +54,17 @@ pub struct ProjectEditor {
 }
 
 impl ProjectEditor {
+    pub fn new(settings: &Settings) -> Self {
+        ProjectEditor {
+            selected: Fields::Name,
+            name: SingleLineInput::new(None),
+            category: SingleLineInput::new(None),
+            path: PathInput::new(settings.default_folder.clone()),
+            tags: SingleLineInput::new(None),
+            lang: SingleLineInput::new(None),
+            desc: MultiLineInput::new(None),
+        }
+    }
     pub fn handle_key_event(&mut self, key_event: KeyEvent) -> Option<EditorEvent> {
         if self.selected == Fields::Path && self.path.input(key_event) {
             return None;
@@ -148,20 +159,6 @@ impl Widget for &mut ProjectEditor {
         );
         popup_block.render(centered_area, buf);
         self.path.render_popup(centered_area, buf);
-    }
-}
-
-impl Default for ProjectEditor {
-    fn default() -> Self {
-        ProjectEditor {
-            selected: Fields::Name,
-            name: SingleLineInput::new(None),
-            category: SingleLineInput::new(None),
-            path: PathInput::new(None),
-            tags: SingleLineInput::new(None),
-            lang: SingleLineInput::new(None),
-            desc: MultiLineInput::new(None),
-        }
     }
 }
 
